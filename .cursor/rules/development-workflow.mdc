@@ -1,0 +1,130 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Development Workflow Guidelines
+
+## Project Phases & Milestones
+
+### Phase 1: Basic MVP
+Priority features for initial implementation:
+- [ ] Dataset upload functionality
+- [ ] Base model selection interface
+- [ ] LoRA training configuration
+- [ ] Training launch via UI
+- [ ] Real-time logs and GPU statistics display
+
+### Phase 2: Extended Support
+Enhanced features for full functionality:
+- [ ] QLoRA and full fine-tune mode support
+- [ ] Checkpoint management system
+- [ ] Inference preview/sandbox
+- [ ] Multi-user support with authentication
+
+## Development Environment Setup
+
+### System Requirements
+- **OS**: Ubuntu Linux with CUDA installed
+- **Python**: 3.10+ with conda or venv
+- **Hardware**: Dual RTX 3060 GPUs
+- **Dependencies**: Axolotl, PyTorch, Transformers, FastAPI, React
+
+### Environment Structure
+```bash
+# Backend environment
+cd backend/
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Frontend environment
+cd frontend/
+npm install
+npm run dev
+```
+
+## Core Development Principles
+
+### Performance Requirements
+- **Fast Iteration**: Sub-10 second feedback loop from config to training start
+- **Memory Efficiency**: Optimize for dual RTX 3060 constraints
+- **Resumable Training**: Save checkpoints every X steps
+- **Background Processing**: Non-blocking UI during training
+
+### Code Organization
+- **Modular Architecture**: Reusable, extensible components
+- **Separation of Concerns**: Clear API boundaries between frontend/backend
+- **Configuration Management**: File-based YAML configs for reproducibility
+- **Error Handling**: Graceful degradation and informative error messages
+
+### Testing Strategy
+- **Unit Tests**: Core training logic and configuration builders
+- **Integration Tests**: API endpoints and file upload/processing
+- **UI Tests**: Critical user workflows (upload → configure → train)
+- **Hardware Tests**: GPU utilization and memory management
+
+## File Organization Standards
+
+### Backend Structure
+```
+backend/
+├── main.py              # FastAPI app entry point
+├── train_runner.py      # Training orchestration
+├── config_builder.py    # YAML generation
+├── models/             
+│   ├── training.py      # Training models/schemas
+│   ├── config.py        # Configuration models
+│   └── checkpoint.py    # Checkpoint metadata
+├── routes/
+│   ├── training.py      # Training endpoints
+│   ├── datasets.py      # Dataset management
+│   └── monitoring.py    # GPU/log monitoring
+├── services/
+│   ├── axolotl_runner.py
+│   ├── gpu_monitor.py
+│   └── file_handler.py
+├── uploads/             # User datasets
+├── logs/               # Training logs
+└── checkpoints/        # Model outputs
+```
+
+### Frontend Structure
+```
+frontend/
+├── src/
+│   ├── components/
+│   │   ├── ModelSelector.jsx
+│   │   ├── DatasetUpload.jsx
+│   │   ├── TrainingConfig.jsx
+│   │   ├── TrainingMonitor.jsx
+│   │   └── CheckpointBrowser.jsx
+│   ├── pages/
+│   │   ├── Dashboard.jsx
+│   │   ├── Training.jsx
+│   │   └── Inference.jsx
+│   ├── hooks/
+│   │   ├── useTraining.js
+│   │   ├── useGPUStats.js
+│   │   └── useWebSocket.js
+│   ├── services/
+│   │   └── api.js
+│   └── utils/
+│       ├── validation.js
+│       └── formatting.js
+└── public/
+```
+
+## API Design Principles
+- **RESTful Endpoints**: Clear resource-based URL structure
+- **WebSocket Streaming**: Real-time logs and monitoring data
+- **Async Operations**: Background training with status polling
+- **Error Standards**: Consistent error response format
+- **Validation**: Input validation at API layer
+
+## Deployment Considerations
+- **Docker Support**: Containerized deployment option
+- **CUDA Integration**: Proper GPU access in containers
+- **Environment Variables**: Configuration via .env files
+- **Process Management**: Proper background job handling
+- **Log Rotation**: Prevent disk space issues from training logs

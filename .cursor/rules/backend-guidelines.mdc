@@ -1,0 +1,51 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Backend Development Guidelines
+
+## FastAPI Backend Structure
+The backend should be organized in the `backend/` directory with the following key components:
+
+### Core Files
+- `main.py` - FastAPI application entry point
+- `train_runner.py` - Training orchestration and background process management
+- `config_builder.py` - YAML configuration generation for Axolotl
+
+### Directory Structure
+```
+backend/
+├── uploads/         # User dataset uploads (.jsonl, .csv, .txt)
+├── logs/           # Training logs and monitoring data
+└── checkpoints/    # Saved model checkpoints and metadata
+```
+
+## Key Backend Requirements
+
+### Training Integration
+- Use Axolotl as subprocess runner for actual training
+- Support LoRA, QLoRA, and full fine-tuning modes
+- Generate YAML configs dynamically based on UI parameters
+- Handle background process management (start/pause/resume/cancel)
+
+### Real-time Monitoring
+- Stream training logs using WebSocket or polling
+- Monitor GPU statistics (memory, temperature, utilization)
+- Track training metrics (loss, validation loss, tokens processed)
+
+### Dataset Handling
+- Accept uploads in JSONL, CSV, TXT formats
+- Auto-convert to Axolotl-compatible format
+- Store in `backend/uploads/` with metadata
+
+### Model Management
+- Support Hugging Face model ID input
+- Validate tokenizer compatibility
+- Manage checkpoints with metadata (base model, dataset, params, training time)
+
+## Technical Considerations
+- Python 3.10+ compatibility
+- CUDA integration for dual RTX 3060 support
+- Resumable training (save checkpoints every X steps)
+- File-based configuration and output structure

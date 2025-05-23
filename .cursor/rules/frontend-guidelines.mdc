@@ -1,0 +1,78 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Frontend Development Guidelines
+
+## React Frontend Structure
+The frontend should be built in the `frontend/` directory using React with Tailwind CSS for styling.
+
+### Technology Stack
+- **Framework**: React (with Vite or Next.js)
+- **Styling**: Tailwind CSS for responsive, modern UI
+- **Build Tool**: Vite or Next.js (to be determined)
+
+### Core UI Components
+
+#### 1. Model Selection Component
+- Dropdown/search for supported models (LLaMA2, Mistral, Falcon, etc.)
+- Custom Hugging Face model ID input field
+- Tokenizer compatibility validation display
+
+#### 2. Dataset Management Interface
+- File upload component (.jsonl, .csv, .txt)
+- Dataset metadata display (size, lines, sample preview)
+- Upload progress indicator
+- Dataset format conversion status
+
+#### 3. Training Configuration Panel
+- Training method selector (LoRA/QLoRA/Full Fine-tuning)
+- Parameter controls:
+  - Epochs (slider/input)
+  - Learning Rate (input with validation)
+  - Batch Size (dropdown/input)
+  - Max Sequence Length (input)
+  - LoRA-specific: rank, alpha, dropout
+- Compute options: Single/dual GPU, precision settings (fp16, bf16)
+- Configuration save/load functionality
+
+#### 4. Training Monitor Dashboard
+- Real-time log streaming display
+- GPU Statistics cards:
+  - Memory usage per GPU (progress bars)
+  - Temperature gauges
+  - Fan speed indicators
+  - Utilization percentages
+- Training metrics visualization:
+  - Loss curves (line charts)
+  - Progress indicators (steps, tokens processed)
+  - ETA display
+
+#### 5. Training Control Panel
+- Start/Pause/Resume/Cancel buttons
+- Training status indicator
+- Progress bar with estimated time remaining
+
+#### 6. Checkpoint Browser
+- Grid/list view of completed training runs
+- Metadata cards showing:
+  - Base model used
+  - Dataset information
+  - Training parameters
+  - Training duration
+- Checkpoint actions (load, delete, download)
+
+#### 7. Inference Sandbox
+- Checkpoint selector
+- Prompt input textarea
+- Generate button
+- Token-by-token output display
+- Generation parameters (temperature, top-p, etc.)
+
+## UX Requirements
+- **Responsive Design**: Mobile-friendly using Tailwind responsive classes
+- **Real-time Updates**: Use WebSocket or polling for live data
+- **Fast Feedback Loop**: Sub-10 second from config to training start
+- **Modern UI**: Clean, intuitive interface following best UX practices
+- **Progress Indicators**: Clear feedback for all async operations

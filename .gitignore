@@ -1,0 +1,244 @@
+# LLM Fine-Tuning UI .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Virtual environments
+backend/venv/
+backend/env/
+backend/ENV/
+backend/env.bak/
+backend/venv.bak/
+
+# Environment variables
+backend/.env
+backend/.env.local
+backend/.env.development.local
+backend/.env.test.local
+backend/.env.production.local
+
+# Node.js
+frontend/node_modules/
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/lerna-debug.log*
+
+# Runtime data
+frontend/pids
+frontend/*.pid
+frontend/*.seed
+frontend/*.pid.lock
+
+# Coverage directory used by tools like istanbul
+frontend/coverage/
+frontend/*.lcov
+
+# nyc test coverage
+frontend/.nyc_output
+
+# ESLint cache
+frontend/.eslintcache
+
+# Microbundle cache
+frontend/.rpt2_cache/
+frontend/.rts2_cache_cjs/
+frontend/.rts2_cache_es/
+frontend/.rts2_cache_umd/
+
+# Optional npm cache directory
+frontend/.npm
+
+# Optional eslint cache
+frontend/.eslintcache
+
+# Optional REPL history
+frontend/.node_repl_history
+
+# Output of 'npm pack'
+frontend/*.tgz
+
+# Yarn Integrity file
+frontend/.yarn-integrity
+
+# dotenv environment variables file
+frontend/.env
+frontend/.env.test
+
+# parcel-bundler cache (https://parceljs.org/)
+frontend/.cache
+frontend/.parcel-cache
+
+# Next.js build output
+frontend/.next
+
+# Nuxt.js build / generate output
+frontend/.nuxt
+frontend/dist
+
+# Storybook build outputs
+frontend/.out
+frontend/.storybook-out
+
+# Vite build output
+frontend/dist/
+frontend/dist-ssr/
+
+# IDE / Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Project specific directories
+backend/uploads/*
+!backend/uploads/.gitkeep
+!backend/uploads/sample_dataset.jsonl
+
+backend/logs/*
+!backend/logs/.gitkeep
+
+backend/checkpoints/*
+!backend/checkpoints/.gitkeep
+
+configs/*
+!configs/.gitkeep
+
+# Model files (usually large)
+*.bin
+*.safetensors
+*.pth
+*.pt
+*.ckpt
+
+# Training outputs
+*.log
+*.out
+*.err
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# celery beat schedule file
+celerybeat-schedule
+
+# SageMath parsed files
+*.sage.py
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+
+# System files
+.fuse_hidden*
+
+# Training-specific files
+backend/configs/*.yaml
+!backend/configs/.gitkeep
+backend/test_small_dataset.yaml
+backend/test_*.yaml
+
+# Axolotl specific
+backend/last_run_prepared/
+backend/.axolotl_config_path_*
+backend/wandb/
+
+# Additional uploaded datasets beyond sample
+backend/uploads/*.jsonl.txt
+backend/uploads/*.csv
+backend/uploads/*.txt
+!backend/uploads/sample_dataset.jsonl
+
+# Hot reloading files
+*.hot-update.js
+*.hot-update.json
+
+# Docker
+.dockerignore
+Dockerfile*
+docker-compose*.yml
+
+# Local testing
+test_*
+*.test
+
+# Runtime logs
+*.log.*
+*.out.* 

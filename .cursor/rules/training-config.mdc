@@ -1,0 +1,103 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Training Configuration Guidelines
+
+## Training Methods Support
+The application must support three training approaches with different hardware requirements:
+
+### 1. LoRA (Low-Rank Adaptation)
+- **Use Case**: Efficient fine-tuning with minimal memory footprint
+- **Memory**: Suitable for single RTX 3060
+- **Parameters**: rank, alpha, dropout, target_modules
+- **Output**: Adapter weights that can be merged with base model
+
+### 2. QLoRA (Quantized LoRA)
+- **Use Case**: Most memory-efficient option for consumer GPUs
+- **Memory**: Optimized for dual RTX 3060 setup
+- **Parameters**: quantization settings + LoRA parameters
+- **Special Requirements**: 4-bit/8-bit quantization support
+
+### 3. Full Fine-tuning
+- **Use Case**: Complete model retraining (when feasible)
+- **Memory**: May require model parallelism across dual GPUs
+- **Considerations**: Use only when memory allows, otherwise fallback to QLoRA
+
+## Configuration Parameters
+
+### Core Training Settings
+- **Epochs**: Number of training iterations (1-100, default: 3)
+- **Learning Rate**: Training step size (1e-6 to 1e-3, default: 2e-4)
+- **Batch Size**: Samples per training step (1-64, adjust for GPU memory)
+- **Max Sequence Length**: Token limit per sample (128-4096, default: 2048)
+
+### LoRA-Specific Parameters
+- **Rank (r)**: Adapter dimension (1-256, default: 16)
+- **Alpha**: Scaling factor (1-512, default: 32)
+- **Dropout**: Regularization (0.0-0.5, default: 0.1)
+- **Target Modules**: Which layers to adapt (query, value, output)
+
+### Compute Configuration
+- **GPU Selection**: Single RTX 3060 vs dual GPU setup
+- **Precision**: fp16 (default), bf16, or fp32
+- **Gradient Accumulation**: Steps to accumulate before update
+- **Mixed Precision**: Enable for memory efficiency
+
+### Dataset Configuration
+- **Training Split**: Percentage for training (70-90%)
+- **Validation Split**: Percentage for validation (10-30%)
+- **Data Format**: Auto-conversion to Axolotl format
+- **Preprocessing**: Tokenization and sequence padding
+
+## Axolotl YAML Generation
+All configurations should be converted to Axolotl-compatible YAML format:
+
+```yaml
+base_model: # Hugging Face model ID
+model_type: # llama, mistral, etc.
+tokenizer_type: # Auto-detect from model
+
+# LoRA Configuration
+adapter: lora
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.1
+lora_target_modules: ["q_proj", "v_proj"]
+
+# Training Parameters
+sequence_len: 2048
+sample_packing: true
+pad_to_sequence_len: true
+
+# Data
+datasets:
+  - path: # Path to processed dataset
+    type: # Dataset format
+
+# Training Settings
+micro_batch_size: 4
+gradient_accumulation_steps: 1
+num_epochs: 3
+learning_rate: 0.0002
+
+# Compute
+bf16: auto
+fp16:
+tf32: false
+
+# Checkpointing
+output_dir: # Checkpoint output directory
+save_strategy: "steps"
+save_steps: 500
+```
+
+## Checkpoint Management
+- Save intermediate checkpoints every 500 steps
+- Store metadata alongside checkpoints:
+  - Base model information
+  - Training configuration used
+  - Dataset information
+  - Training metrics and timing
+- Enable resumable training from any checkpoint

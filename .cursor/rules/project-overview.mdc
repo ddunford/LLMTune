@@ -1,0 +1,34 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# LLM Fine-Tuning UI Project Overview
+
+## Project Purpose
+This is a web-based UI for training and fine-tuning LLMs on local consumer hardware (dual RTX 3060 GPUs). The application supports LoRA, QLoRA, and full fine-tuning techniques for Hugging Face-compatible models.
+
+## Architecture
+- **Frontend**: React + Tailwind CSS (responsive UI)
+- **Backend**: FastAPI (Python) with Axolotl integration
+- **Target Hardware**: Dual RTX 3060 GPUs with Ubuntu Linux + CUDA
+
+## Key Features
+1. Model Selection (Hugging Face compatibility)
+2. Dataset Management (JSONL, CSV, TXT support)
+3. Training Configuration (LoRA/QLoRA/Full fine-tuning)
+4. Real-time Training Monitoring (logs, GPU stats, metrics)
+5. Checkpoint Management
+6. Inference Sandbox
+
+## Project Structure Reference
+The main PRD document is [PRD.md](mdc:PRD.md) which contains detailed requirements and specifications.
+
+Expected folder structure:
+```
+llm-trainer-ui/
+├── backend/          # FastAPI server, training logic
+├── frontend/         # React UI components
+├── configs/          # YAML configurations
+└── models/           # Model checkpoints
+```
