@@ -2,11 +2,13 @@
 
 ## Overview
 
-This project aims to build a user-friendly web-based UI for training and fine-tuning LLMs (Large Language Models) on local consumer hardware (specifically dual RTX 3060 GPUs). The UI will support a generic, extensible setup allowing users to fine-tune Hugging Face-compatible LLMs using LoRA, QLoRA, and other efficient training techniques.
+This project aims to build a user-friendly web-based UI for training and fine-tuning LLMs (Large Language Models) on local consumer hardware (specifically dual RTX 3060 GPUs). The UI leverages **Unsloth** for 2-5x faster training with superior multi-GPU support, enabling efficient LoRA, QLoRA, and full fine-tuning of Hugging Face-compatible models.
 
 ## Goals
 
 * Enable fine-tuning of existing Hugging Face LLMs via a browser UI
+* **Achieve 2-5x faster training** using Unsloth optimizations
+* **Automatic dual GPU utilization** without complex setup
 * Support LoRA, QLoRA, and full fine-tuning (when feasible)
 * Reusable, modular architecture
 * Monitor GPU usage, training status, and logs
@@ -28,39 +30,38 @@ This project aims to build a user-friendly web-based UI for training and fine-tu
 * Fetch and display a list of supported models (default: LLaMA2, Mistral, Falcon, etc.)
 * Allow custom Hugging Face model ID input
 * Check for tokenizer compatibility
+* **Unsloth-optimized model variants** when available
 
 ### 2. Dataset Management
 
 * Upload dataset file (.jsonl, .csv, .txt)
 * Display file metadata (size, lines, sample preview)
-* Auto-convert to Axolotl-compatible format
+* Auto-convert to Unsloth-compatible format
 * Save datasets in `backend/uploads/`
 
 ### 3. Training Configuration
 
 * Define training method:
-
-  * LoRA
-  * QLoRA
+  * LoRA (with Unsloth optimizations)
+  * QLoRA (4-bit quantization)
   * Full Fine-tuning
 * Set configurable params:
-
   * Epochs
   * Learning Rate
   * Batch Size
   * Max Sequence Length
   * Adapter config (LoRA rank, alpha, dropout)
 * Select compute options:
-
-  * Single or dual GPU
-  * Mixed precision (fp16, bf16)
-* Save configuration YAML for reproducibility
+  * **Automatic dual GPU distribution**
+  * Mixed precision (fp16, bf16 auto-detected)
+* **Dynamic Python script generation** (no YAML configs)
 
 ### 4. Training Launch
 
 * Start training from UI (via FastAPI backend)
+* **Unsloth handles multi-GPU automatically**
 * Launch as background process
-* Show real-time logs
+* Show real-time logs with Unsloth optimization messages
 * Show estimated time remaining
 * Pause/Resume/Cancel training jobs
 
@@ -68,27 +69,26 @@ This project aims to build a user-friendly web-based UI for training and fine-tu
 
 * Stream logs from backend (`tail -f`)
 * GPU Stats:
-
-  * Memory usage per GPU
+  * Memory usage per GPU (both RTX 3060s)
   * Temperature
   * Fan speed
-  * Utilisation (%)
+  * Utilization (%) across both GPUs
 * Display training metrics:
-
   * Loss
   * Validation loss (if val set given)
   * Step count
   * Tokens processed
+  * **Training speed improvements** (2-5x notifications)
 
 ### 6. Checkpoint Browser
 
 * List completed training runs
 * Show metadata:
-
   * Base model
   * Dataset used
-  * Params
-  * Training time
+  * Training parameters
+  * Training time (with speedup metrics)
+  * **Unsloth optimizations applied**
 * Allow preview generation from saved checkpoints (inference)
 
 ### 7. Inference Sandbox (Post-training)
@@ -96,16 +96,19 @@ This project aims to build a user-friendly web-based UI for training and fine-tu
 * Load model checkpoint
 * Enter prompt and generate text
 * Show token-by-token output
+* **Fast inference** with Unsloth optimizations
 
 ---
 
 ## Non-functional Requirements
 
-* Support dual RTX 3060s using model parallelism or QLoRA
+* **Automatic dual RTX 3060 utilization** using Unsloth's model parallelism
+* **2-5x faster training** compared to traditional methods
 * Responsive UI (React + Tailwind)
 * REST API (FastAPI)
 * File-based config and output structure
-* Compatible with Axolotl (as backend trainer)
+* **Compatible with Unsloth** (as backend trainer)
+* **Memory efficient** - fits larger models on consumer GPUs
 
 ---
 
@@ -120,14 +123,16 @@ This project aims to build a user-friendly web-based UI for training and fine-tu
 ### Backend
 
 * FastAPI (Python)
-* Axolotl (subprocess runner)
-* YAML config generator
+* **Unsloth** (training backend)
+* **Dynamic Python script generation**
 * Log streaming (websocket or polling)
+* **TRL (Transformers Reinforcement Learning)** integration
 
 ### System
 
-* Ubuntu Linux (CUDA installed)
+* Ubuntu Linux (CUDA 12.0+ installed)
 * Python 3.10+
+* **Unsloth** with dependencies
 * Conda or venv environments
 
 ---
@@ -138,37 +143,78 @@ This project aims to build a user-friendly web-based UI for training and fine-tu
 llm-trainer-ui/
 ├── backend/
 │   ├── main.py
-│   ├── train_runner.py
-│   ├── config_builder.py
-│   ├── uploads/
-│   ├── logs/
-│   └── checkpoints/
+│   ├── unsloth_runner.py     # Unsloth training orchestration
+│   ├── models/               # Data models
+│   ├── routes/               # API endpoints
+│   ├── services/             # Business logic
+│   ├── uploads/              # Datasets
+│   ├── logs/                # Training logs
+│   ├── checkpoints/         # Model outputs
+│   └── scripts/             # Generated training scripts
 ├── frontend/
 │   ├── components/
 │   ├── pages/
 │   └── public/
-├── configs/
-└── models/
+└── docs/                    # Documentation
 ```
 
 ---
 
 ## Milestones
 
-### Phase 1: Basic MVP
+### Phase 1: Basic MVP ✅
 
-* [ ] Upload dataset
-* [ ] Select base model
-* [ ] Configure LoRA training
-* [ ] Launch training via UI
-* [ ] Show logs + GPU stats
+* [x] Upload dataset
+* [x] Select base model
+* [x] Configure LoRA training
+* [x] Launch training via UI
+* [x] Show logs + GPU stats
 
-### Phase 2: Extended Support
+### Phase 2: Extended Support ✅
 
-* [ ] Add QLoRA and full fine-tune modes
-* [ ] Checkpoint management
-* [ ] Inference preview tab
+* [x] Add QLoRA and full fine-tune modes
+* [x] Checkpoint management
+* [x] Inference preview tab
+* [x] **Unsloth migration for 2-5x faster training**
+* [x] **Dual GPU optimization**
 * [ ] Multi-user support (auth)
+
+---
+
+## Performance Improvements with Unsloth
+
+### Training Speed
+* **2-5x faster** than traditional Axolotl-based training
+* Optimized gradient computation and memory management
+* **Automatic model parallelism** across dual RTX 3060s
+
+### Memory Efficiency
+* Better memory utilization allows larger models
+* **4-bit quantization** support for extreme efficiency
+* Reduced GPU memory fragmentation
+
+### GPU Utilization
+* **Both RTX 3060s utilized automatically**
+* No complex distributed training setup required
+* Optimal tensor placement across devices
+
+### Development Experience
+* **Simplified setup** - no YAML configuration files
+* **Clear error messages** instead of cryptic distributed training errors
+* **Dynamic script generation** based on UI parameters
+
+---
+
+## Migration Benefits (Axolotl → Unsloth)
+
+| Aspect | Axolotl (Old) | Unsloth (New) |
+|--------|---------------|---------------|
+| **Setup Complexity** | Complex YAML configs, distributed training | Simple Python scripts, auto-optimization |
+| **Dual GPU Support** | Manual configuration, frequent errors | Automatic, works out of the box |
+| **Training Speed** | Standard PyTorch speed | 2-5x faster with optimizations |
+| **Memory Usage** | Often out-of-memory on 12GB GPUs | Optimized, fits larger models |
+| **Error Handling** | Cryptic distributed training errors | Clear, actionable error messages |
+| **GPU Utilization** | Single GPU or complex multi-GPU setup | Automatic optimal distribution |
 
 ---
 
@@ -178,15 +224,17 @@ llm-trainer-ui/
 * Pre/post training evaluation benchmark
 * AutoLR finder
 * Hugging Face Hub model push
+* **Unsloth-specific optimizations** for new model architectures
 
 ---
 
 ## Notes
 
-* All training runs must be resumable (save checkpoint every X steps)
-* Use accelerate or deepspeed only if needed for full fine-tune
+* All training runs must be resumable (save checkpoint every epoch)
+* **Unsloth handles multi-GPU automatically** - no manual distributed training setup
 * Avoid image/data handling logic – this is LLM only
 * Prioritise fast iteration (sub-10s feedback loop from config to training start)
+* **Training speed improvements** are a key competitive advantage
 
 ---
 
@@ -194,4 +242,6 @@ llm-trainer-ui/
 
 * **LoRA**: Low-Rank Adaptation, efficient way to fine-tune large models by injecting trainable layers
 * **QLoRA**: Quantised LoRA – memory-efficient method allowing fine-tuning on consumer GPUs
-* **Axolotl**: Open-source library for training and fine-tuning LLMs, supports LoRA/QLoRA
+* **Unsloth**: High-performance training library providing 2-5x speedup with automatic multi-GPU support
+* **TRL**: Transformers Reinforcement Learning library used by Unsloth for training
+* **Model Parallelism**: Automatic distribution of model layers across multiple GPUs

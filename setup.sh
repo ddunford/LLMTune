@@ -147,6 +147,14 @@ setup_backend() {
     # Install development dependencies
     pip install pytest==7.4.3 pytest-asyncio==0.21.1 httpx==0.25.2
     
+    # Install database dependencies for settings management
+    print_status "Installing database libraries for settings..."
+    if pip install SQLAlchemy>=2.0.0 alembic>=1.12.0; then
+        print_success "Database libraries installed"
+    else
+        print_warning "Database libraries failed to install. Settings features may be limited."
+    fi
+    
     print_success "Backend dependencies installed"
     
     # Create environment file

@@ -2,8 +2,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
+import logging
 
-from routes import training, datasets, monitoring
+from routes import training, datasets, monitoring, settings
+from services.database import db_service
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="LLM Fine-Tuning UI Backend",
@@ -14,10 +20,16 @@ app = FastAPI(
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup"""
-    from train_runner import training_runner
+    print("🚀 Starting LLM Fine-Tuning UI...")
     
-    # Restore jobs from existing config files
-    await training_runner.restore_jobs_from_configs()
+    # Database initialization
+    try:
+        db_service.init_database()
+        logger.info("Database connected successfully")
+    except Exception as e:
+        logger.error(f"Database connection failed: {e}")
+    
+    logger.info("Application started successfully")
 
 # CORS middleware for frontend communication
 app.add_middleware(
@@ -48,6 +60,7 @@ app.mount("/checkpoints", StaticFiles(directory="checkpoints"), name="checkpoint
 app.include_router(training.router, prefix="/api/training", tags=["training"])
 app.include_router(datasets.router, prefix="/api/datasets", tags=["datasets"])
 app.include_router(monitoring.router, prefix="/api/monitoring", tags=["monitoring"])
+app.include_router(settings.router, prefix="/api/settings", tags=["settings"])
 
 @app.get("/")
 async def root():

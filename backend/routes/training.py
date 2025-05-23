@@ -1,13 +1,15 @@
 from fastapi import APIRouter, HTTPException
 from typing import List
 import os
+import logging
 
 from models.training import (
     TrainingConfig, TrainingJob, TrainingJobResponse, 
     TrainingControlRequest, TrainingStatus
 )
-from train_runner import training_runner
+from unsloth_runner import dual_gpu_runner as training_runner
 from services.inference_service import inference_service
+from services.database import db_service
 
 router = APIRouter()
 
@@ -126,7 +128,8 @@ async def delete_training_job(job_id: str):
     
     except Exception as e:
         # Log the error but continue with job deletion
-        print(f"Warning: Error cleaning up files for job {job_id}: {e}")
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Error cleaning up files for job {job_id}: {e}")
     
     # Remove from memory
     if job_id in training_runner.jobs:
@@ -153,14 +156,6 @@ async def get_supported_models():
             "recommended": True
         },
         {
-            "id": "mistralai/Mistral-7B-Instruct-v0.3",
-            "name": "Mistral 7B Instruct v0.3",
-            "description": "Efficient 7B model with great performance and function calling support",
-            "size": "7B parameters",
-            "category": "General & Chat",
-            "recommended": True
-        },
-        {
             "id": "microsoft/DialoGPT-medium",
             "name": "DialoGPT Medium",
             "description": "Specialized conversational AI model for chatbots",
@@ -171,14 +166,6 @@ async def get_supported_models():
         
         # Coding & Development
         {
-            "id": "deepseek-ai/deepseek-coder-7b-instruct-v1.5",
-            "name": "DeepSeek Coder 7B Instruct",
-            "description": "Specialized for coding tasks, supports 80+ programming languages",
-            "size": "7B parameters",
-            "category": "Coding",
-            "recommended": True
-        },
-        {
             "id": "codellama/CodeLlama-7b-Instruct-hf",
             "name": "Code Llama 7B Instruct",
             "description": "Meta's specialized coding model based on Llama 2",
@@ -187,64 +174,72 @@ async def get_supported_models():
             "recommended": True
         },
         {
-            "id": "WizardLM/WizardCoder-15B-V1.0",
-            "name": "WizardCoder 15B",
-            "description": "Strong coding performance across multiple programming languages",
-            "size": "15B parameters",
+            "id": "WizardLM/WizardCoder-Python-7B-V1.0",
+            "name": "WizardCoder Python 7B",
+            "description": "Specialized Python coding model with strong performance",
+            "size": "7B parameters",
+            "category": "Coding",
+            "recommended": True
+        },
+        {
+            "id": "bigcode/starcoder2-7b",
+            "name": "StarCoder2 7B",
+            "description": "Advanced code generation model supporting 80+ languages",
+            "size": "7B parameters",
             "category": "Coding",
             "recommended": False
         },
         
         # Reasoning & Math
         {
-            "id": "deepseek-ai/deepseek-math-7b-instruct",
-            "name": "DeepSeek Math 7B Instruct",
-            "description": "Specialized for mathematical reasoning and problem solving",
-            "size": "7B parameters",
+            "id": "microsoft/phi-2",
+            "name": "Phi-2",
+            "description": "Microsoft's efficient model optimized for reasoning tasks",
+            "size": "2.7B parameters",
             "category": "Reasoning & Math",
             "recommended": True
         },
         {
-            "id": "microsoft/phi-3-mini-4k-instruct",
-            "name": "Phi-3 Mini 4K Instruct",
-            "description": "Microsoft's efficient model optimized for reasoning tasks",
-            "size": "3.8B parameters",
-            "category": "Reasoning & Math",
+            "id": "mistralai/Mistral-7B-v0.1",
+            "name": "Mistral 7B v0.1",
+            "description": "Open source Mistral 7B model - excellent for general tasks (non-gated)",
+            "size": "7B parameters",
+            "category": "General & Chat",
             "recommended": True
         },
         
         # Small & Efficient Models
         {
-            "id": "microsoft/phi-3-mini-128k-instruct",
-            "name": "Phi-3 Mini 128K Instruct",
-            "description": "Compact but powerful model with large context window",
-            "size": "3.8B parameters",
+            "id": "microsoft/phi-1_5",
+            "name": "Phi-1.5",
+            "description": "Compact but powerful model with strong performance",
+            "size": "1.3B parameters",
             "category": "Small & Efficient",
             "recommended": True
         },
         {
-            "id": "google/gemma-2-9b-it",
-            "name": "Gemma 2 9B Instruct",
+            "id": "google/gemma-2b",
+            "name": "Gemma 2B",
             "description": "Google's efficient open model with strong performance",
-            "size": "9B parameters",
+            "size": "2B parameters",
             "category": "Small & Efficient",
             "recommended": True
         },
         
         # Multilingual
         {
-            "id": "Qwen/Qwen2.5-7B-Instruct",
-            "name": "Qwen 2.5 7B Instruct",
-            "description": "Alibaba's multilingual model with strong reasoning capabilities",
+            "id": "bigscience/bloom-7b1",
+            "name": "BLOOM 7B",
+            "description": "Multilingual model supporting dozens of languages",
             "size": "7B parameters",
             "category": "Multilingual",
             "recommended": True
         },
         {
-            "id": "bigscience/bloom-7b1",
-            "name": "BLOOM 7B",
-            "description": "Multilingual model supporting dozens of languages",
-            "size": "7B parameters",
+            "id": "facebook/xglm-7.5B",
+            "name": "XGLM 7.5B",
+            "description": "Cross-lingual generative model supporting 30+ languages",
+            "size": "7.5B parameters",
             "category": "Multilingual",
             "recommended": False
         },
@@ -282,25 +277,98 @@ async def get_supported_models():
 async def validate_model(model_id: str):
     """Validate if a model ID is accessible and compatible"""
     try:
-        # This would typically try to load the model/tokenizer
-        # For now, just return success for valid-looking model IDs
-        if "/" in model_id and len(model_id.split("/")) == 2:
-            return {
-                "valid": True,
-                "message": "Model ID appears valid",
-                "tokenizer_compatible": True
-            }
-        else:
-            return {
-                "valid": False,
-                "message": "Invalid model ID format",
-                "tokenizer_compatible": False
-            }
+        # Get stored HF token
+        hf_token = db_service.get_active_hf_token()
+        
+        # Set token in environment if available
+        original_token = os.environ.get("HUGGINGFACE_HUB_TOKEN")
+        if hf_token:
+            os.environ["HUGGINGFACE_HUB_TOKEN"] = hf_token
+        
+        try:
+            from transformers import AutoConfig, AutoTokenizer
+            from huggingface_hub import model_info
+            
+            # Try to get model info first (this tests basic accessibility)
+            try:
+                info = model_info(model_id, token=hf_token)
+                model_name = info.modelId
+                
+                # Try to load config to test deeper accessibility
+                config = AutoConfig.from_pretrained(model_id, token=hf_token)
+                
+                # Try to load tokenizer to test compatibility
+                tokenizer = AutoTokenizer.from_pretrained(model_id, token=hf_token)
+                
+                return {
+                    "valid": True,
+                    "name": model_name,
+                    "description": f"✅ Model validated successfully. Architecture: {config.architectures[0] if config.architectures else 'Unknown'}",
+                    "message": "Model is accessible and compatible",
+                    "tokenizer_compatible": True,
+                    "requires_auth": bool(hf_token),
+                    "architecture": config.architectures[0] if config.architectures else None,
+                    "auth_status": "authenticated" if hf_token else "public_access"
+                }
+                
+            except Exception as model_error:
+                error_str = str(model_error).lower()
+                
+                # Check if this is an authentication error
+                if "401" in str(model_error) or "gated" in error_str or "unauthorized" in error_str:
+                    if hf_token:
+                        return {
+                            "valid": False,
+                            "message": "❌ Your Hugging Face token doesn't have access to this gated model. You may need to request access on the model's page.",
+                            "tokenizer_compatible": False,
+                            "requires_auth": True,
+                            "error_type": "permission_denied",
+                            "auth_status": "token_insufficient",
+                            "access_request_url": f"https://huggingface.co/{model_id}",
+                            "help_text": "Click the link above to visit the model page and request access. Once approved, you'll be able to use this model for training."
+                        }
+                    else:
+                        return {
+                            "valid": False,
+                            "message": "🔐 This model is gated and requires Hugging Face authentication. Please configure your token in Settings → Hugging Face.",
+                            "tokenizer_compatible": False,
+                            "requires_auth": True,
+                            "error_type": "authentication_required",
+                            "auth_status": "no_token",
+                            "access_request_url": f"https://huggingface.co/{model_id}",
+                            "help_text": "This model requires both authentication and permission. First configure your HF token, then request access at the link above."
+                        }
+                elif "not found" in error_str or "does not exist" in error_str:
+                    return {
+                        "valid": False,
+                        "message": f"❌ Model '{model_id}' not found. Please check the model ID.",
+                        "tokenizer_compatible": False,
+                        "error_type": "not_found",
+                        "auth_status": hf_token and "authenticated" or "public_access"
+                    }
+                else:
+                    return {
+                        "valid": False,
+                        "message": f"❌ Model validation failed: {str(model_error)}",
+                        "tokenizer_compatible": False,
+                        "error_type": "validation_error",
+                        "auth_status": hf_token and "authenticated" or "public_access"
+                    }
+        
+        finally:
+            # Restore original token
+            if original_token:
+                os.environ["HUGGINGFACE_HUB_TOKEN"] = original_token
+            elif hf_token:
+                os.environ.pop("HUGGINGFACE_HUB_TOKEN", None)
+                
     except Exception as e:
         return {
             "valid": False,
-            "message": f"Error validating model: {str(e)}",
-            "tokenizer_compatible": False
+            "message": f"❌ System error validating model: {str(e)}",
+            "tokenizer_compatible": False,
+            "error_type": "system_error",
+            "auth_status": "unknown"
         }
 
 @router.get("/jobs/{job_id}/logs")
@@ -341,45 +409,6 @@ async def get_training_logs(job_id: str, limit: int = 100):
         # Return the error in a user-friendly way
         error_msg = f"Error reading logs: {str(e)}"
         return {"logs": [error_msg], "job_id": job_id, "total_lines": 1}
-
-@router.get("/jobs/{job_id}/debug")
-async def debug_job_status(job_id: str):
-    """Debug endpoint to check job status and monitoring info"""
-    job = training_runner.get_job(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Training job not found")
-    
-    debug_info = {
-        "job_id": job_id,
-        "status": job.status,
-        "started_at": job.started_at,
-        "current_step": job.current_step,
-        "total_steps": job.total_steps,
-        "current_epoch": job.current_epoch,
-        "total_epochs": job.total_epochs,
-        "loss": job.loss,
-        "log_file": getattr(job, 'log_file', None),
-        "process_running": job_id in training_runner.processes,
-        "log_file_exists": False,
-        "log_file_size": 0,
-        "last_log_lines": []
-    }
-    
-    # Check log file status
-    if debug_info["log_file"]:
-        if os.path.exists(debug_info["log_file"]):
-            debug_info["log_file_exists"] = True
-            debug_info["log_file_size"] = os.path.getsize(debug_info["log_file"])
-            
-            # Get last few lines
-            try:
-                with open(debug_info["log_file"], 'r') as f:
-                    lines = f.readlines()
-                    debug_info["last_log_lines"] = [line.strip() for line in lines[-5:]]
-            except Exception as e:
-                debug_info["log_read_error"] = str(e)
-    
-    return debug_info
 
 @router.post("/cleanup")
 async def cleanup_orphaned_files():

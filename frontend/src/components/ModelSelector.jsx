@@ -9,14 +9,8 @@ const POPULAR_MODELS = [
     name: 'Llama 3.3 70B Instruct',
     description: 'Meta\'s latest model - excellent for conversation, reasoning, and general tasks',
     category: 'General & Chat',
-    recommended: true
-  },
-  {
-    id: 'mistralai/Mistral-7B-Instruct-v0.3',
-    name: 'Mistral 7B Instruct v0.3',
-    description: 'Efficient 7B model with great performance and function calling support',
-    category: 'General & Chat',
-    recommended: true
+    recommended: true,
+    potentially_gated: true
   },
   {
     id: 'microsoft/DialoGPT-medium',
@@ -28,71 +22,81 @@ const POPULAR_MODELS = [
 
   // Coding & Development
   {
-    id: 'deepseek-ai/deepseek-coder-7b-instruct-v1.5',
-    name: 'DeepSeek Coder 7B Instruct',
-    description: 'Specialized for coding tasks, supports 80+ programming languages',
-    category: 'Coding',
-    recommended: true
-  },
-  {
     id: 'codellama/CodeLlama-7b-Instruct-hf',
     name: 'Code Llama 7B Instruct',
     description: 'Meta\'s specialized coding model based on Llama 2',
     category: 'Coding',
+    recommended: true,
+    potentially_gated: true
+  },
+  {
+    id: 'WizardLM/WizardCoder-Python-7B-V1.0',
+    name: 'WizardCoder Python 7B',
+    description: 'Specialized Python coding model with strong performance',
+    category: 'Coding',
     recommended: true
   },
   {
-    id: 'WizardLM/WizardCoder-15B-V1.0',
-    name: 'WizardCoder 15B',
-    description: 'Strong coding performance across multiple programming languages',
+    id: 'bigcode/starcoder2-7b',
+    name: 'StarCoder2 7B',
+    description: 'Advanced code generation model supporting 80+ languages',
     category: 'Coding',
     recommended: false
   },
 
   // Reasoning & Math
   {
-    id: 'deepseek-ai/deepseek-math-7b-instruct',
-    name: 'DeepSeek Math 7B Instruct',
-    description: 'Specialized for mathematical reasoning and problem solving',
-    category: 'Reasoning & Math',
-    recommended: true
-  },
-  {
-    id: 'microsoft/phi-3-mini-4k-instruct',
-    name: 'Phi-3 Mini 4K Instruct',
+    id: 'microsoft/phi-2',
+    name: 'Phi-2',
     description: 'Microsoft\'s efficient model optimized for reasoning tasks',
     category: 'Reasoning & Math',
     recommended: true
   },
+  {
+    id: 'mistralai/Mistral-7B-v0.1',
+    name: 'Mistral 7B v0.1',
+    description: 'Open source Mistral 7B model - excellent for general tasks',
+    category: 'General & Chat',
+    recommended: true,
+    note: 'May require access request'
+  },
 
   // Small & Efficient Models
   {
-    id: 'microsoft/phi-3-mini-128k-instruct',
-    name: 'Phi-3 Mini 128K Instruct',
-    description: 'Compact but powerful model with large context window',
+    id: 'microsoft/phi-1_5',
+    name: 'Phi-1.5',
+    description: 'Compact but powerful model with strong performance',
     category: 'Small & Efficient',
     recommended: true
   },
   {
-    id: 'google/gemma-2-9b-it',
-    name: 'Gemma 2 9B Instruct',
+    id: 'google/gemma-2b',
+    name: 'Gemma 2B',
     description: 'Google\'s efficient open model with strong performance',
+    category: 'Small & Efficient',
+    recommended: true,
+    potentially_gated: true
+  },
+  {
+    id: 'TinyLlama/TinyLlama-1.1B-Chat-v1.0',
+    name: 'TinyLlama 1.1B Chat',
+    description: 'Ultra-compact chat model, great for experimentation',
     category: 'Small & Efficient',
     recommended: true
   },
 
   // Multilingual
   {
-    id: 'Qwen/Qwen2.5-7B-Instruct',
-    name: 'Qwen 2.5 7B Instruct',
-    description: 'Alibaba\'s multilingual model with strong reasoning capabilities',
+    id: 'bigscience/bloom-7b1',
+    name: 'BLOOM 7B',
+    description: 'Multilingual model supporting dozens of languages',
     category: 'Multilingual',
     recommended: true
   },
   {
-    id: 'bigscience/bloom-7b1',
-    name: 'BLOOM 7B',
-    description: 'Multilingual model supporting dozens of languages',
+    id: 'facebook/xglm-7.5B',
+    name: 'XGLM 7.5B',
+    description: 'Cross-lingual generative model supporting 30+ languages',
     category: 'Multilingual',
     recommended: false
   }
@@ -129,16 +133,29 @@ function ModelSelector({ selectedModel, onModelSelect, disabled = false }) {
 
     try {
       const response = await trainingAPI.validateModel(modelId)
-      if (response.data.valid) {
-        setValidationStatus({ valid: true, message: 'Model validated successfully' })
+      const result = response.data
+      
+      if (result.valid) {
+        setValidationStatus({ 
+          valid: true, 
+          message: result.message || 'Model validated successfully',
+          description: result.description
+        })
         onModelSelect({
           id: modelId,
-          name: response.data.name || modelId,
-          description: response.data.description || 'Custom model',
+          name: result.name || modelId,
+          description: result.description || 'Custom model',
           custom: true
         })
       } else {
-        setValidationStatus({ valid: false, message: response.data.error || 'Model validation failed' })
+        setValidationStatus({ 
+          valid: false, 
+          message: result.message || 'Model validation failed',
+          error_type: result.error_type,
+          access_request_url: result.access_request_url,
+          help_text: result.help_text,
+          auth_status: result.auth_status
+        })
       }
     } catch (error) {
       setValidationStatus({ 
@@ -187,7 +204,7 @@ function ModelSelector({ selectedModel, onModelSelect, disabled = false }) {
             <div className="flex items-start space-x-2">
               <span>💻</span>
               <div>
-                <strong>Coding:</strong> Code generation, debugging, programming assistance
+                <strong>Coding:</strong> Programming assistance, code completion, debugging
               </div>
             </div>
             <div className="flex items-start space-x-2">
@@ -199,13 +216,15 @@ function ModelSelector({ selectedModel, onModelSelect, disabled = false }) {
             <div className="flex items-start space-x-2">
               <span>⚡</span>
               <div>
-                <strong>Small & Efficient:</strong> Fast inference, resource-constrained environments
+                <strong>Small & Efficient:</strong> Fast inference, lower memory requirements
               </div>
             </div>
-            <div className="flex items-start space-x-2">
-              <span>🌍</span>
+          </div>
+          <div className="mt-3 pt-3 border-t border-blue-200">
+            <div className="flex items-start space-x-2 text-xs text-blue-700">
+              <span>🔓</span>
               <div>
-                <strong>Multilingual:</strong> Non-English languages, international use cases
+                <strong>Note:</strong> All models listed are publicly accessible. Some models on Hugging Face require authentication - we've selected open models to avoid access issues.
               </div>
             </div>
           </div>
@@ -259,6 +278,33 @@ function ModelSelector({ selectedModel, onModelSelect, disabled = false }) {
                     <div className="font-medium text-gray-900 pr-16">{model.name}</div>
                     <div className="text-sm text-gray-500 mt-1">{model.description}</div>
                     <div className="text-xs text-gray-400 mt-2 font-mono">{model.id}</div>
+                    
+                    {/* Access indicators */}
+                    <div className="mt-3 space-y-2">
+                      {model.potentially_gated && (
+                        <div className="flex items-center justify-between">
+                          <span className="inline-flex items-center px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800">
+                            🔐 May require access
+                          </span>
+                          <a
+                            href={`https://huggingface.co/${model.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center px-2 py-1 text-xs text-blue-600 hover:text-blue-700"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <ExternalLink className="h-3 w-3 mr-1" />
+                            Request Access
+                          </a>
+                        </div>
+                      )}
+                      
+                      {model.note && (
+                        <div className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
+                          ℹ️ {model.note}
+                        </div>
+                      )}
+                    </div>
                   </button>
                 ))}
               </div>
@@ -304,15 +350,56 @@ function ModelSelector({ selectedModel, onModelSelect, disabled = false }) {
 
               {/* Validation Status */}
               {validationStatus && (
-                <div className={`flex items-center space-x-2 text-sm ${
-                  validationStatus.valid ? 'text-green-600' : 'text-red-600'
+                <div className={`p-4 rounded-lg border ${
+                  validationStatus.valid 
+                    ? 'bg-green-50 border-green-200' 
+                    : 'bg-red-50 border-red-200'
                 }`}>
-                  {validationStatus.valid ? (
-                    <CheckCircle className="h-4 w-4" />
-                  ) : (
-                    <AlertCircle className="h-4 w-4" />
-                  )}
-                  <span>{validationStatus.message}</span>
+                  <div className={`flex items-start space-x-2 text-sm ${
+                    validationStatus.valid ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {validationStatus.valid ? (
+                      <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    ) : (
+                      <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    )}
+                    <div className="flex-1">
+                      <div className="font-medium">{validationStatus.message}</div>
+                      
+                      {/* Show help text and access link for gated models */}
+                      {!validationStatus.valid && validationStatus.access_request_url && (
+                        <div className="mt-2 space-y-2">
+                          {validationStatus.help_text && (
+                            <p className="text-xs text-gray-600">{validationStatus.help_text}</p>
+                          )}
+                          <div className="flex items-center space-x-2">
+                            <a
+                              href={validationStatus.access_request_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center px-3 py-1 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                            >
+                              <ExternalLink className="h-3 w-3 mr-1" />
+                              Request Model Access
+                            </a>
+                            <span className="text-xs text-gray-500">
+                              (Opens Hugging Face model page)
+                            </span>
+                          </div>
+                          
+                          {/* Show authentication status */}
+                          {validationStatus.auth_status && (
+                            <div className="text-xs text-gray-500">
+                              Auth Status: <span className="font-mono">{validationStatus.auth_status}</span>
+                              {validationStatus.auth_status === 'no_token' && (
+                                <span> • Configure your token in <a href="/settings" className="text-blue-600 hover:underline">Settings</a></span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -329,6 +416,25 @@ function ModelSelector({ selectedModel, onModelSelect, disabled = false }) {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Gated Model Help Section */}
+        <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <h4 className="text-sm font-medium text-blue-900 mb-3">🔐 About Gated Models</h4>
+          <div className="text-xs text-blue-800 space-y-2">
+            <p>
+              Some models on Hugging Face require permission to access. To use these models:
+            </p>
+            <ol className="list-decimal list-inside space-y-1 ml-2">
+              <li>Configure your Hugging Face token in <a href="/settings" className="text-blue-600 hover:underline font-medium">Settings</a></li>
+              <li>Click "Request Access" on the model's page</li>
+              <li>Wait for approval (usually instant to a few hours)</li>
+              <li>Return here to use the model for training</li>
+            </ol>
+            <p className="pt-2 border-t border-blue-200">
+              <strong>Popular gated models:</strong> Llama models, Code Llama, and some Mistral variants require this process.
+            </p>
+          </div>
         </div>
       </div>
 

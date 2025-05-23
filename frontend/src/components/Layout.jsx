@@ -9,7 +9,10 @@ import {
   X,
   Cpu,
   Zap,
-  MessageSquare
+  MessageSquare,
+  Monitor,
+  BrainCircuit,
+  Settings
 } from 'lucide-react'
 
 const navigation = [
@@ -126,6 +129,19 @@ function Sidebar() {
             {item.name}
           </NavLink>
         ))}
+        <NavLink
+          to="/settings"
+          className={({ isActive }) =>
+            `flex items-center space-x-3 px-3 py-2 rounded-md text-sm font-medium ${
+              isActive
+                ? 'bg-blue-600 text-white'
+                : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+            }`
+          }
+        >
+          <Settings className="h-5 w-5" />
+          <span>Settings</span>
+        </NavLink>
       </nav>
       
       <div className="flex-shrink-0 p-4 border-t border-gray-700">

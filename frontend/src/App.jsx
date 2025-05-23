@@ -6,6 +6,7 @@ import Training from './pages/Training'
 import Datasets from './pages/Datasets'
 import Monitoring from './pages/Monitoring'
 import Inference from './pages/Inference'
+import Settings from './pages/Settings'
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
         <Route path="/datasets" element={<Datasets />} />
         <Route path="/monitoring" element={<Monitoring />} />
         <Route path="/inference" element={<Inference />} />
+        <Route path="/settings" element={<Settings />} />
       </Routes>
     </Layout>
   )
