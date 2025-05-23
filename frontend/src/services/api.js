@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001'
+const API_BASE_URL = import.meta.env.VITE_API_URL || ''
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -86,10 +86,19 @@ export const trainingAPI = {
       max_tokens: parameters.maxTokens || 100,
       temperature: parameters.temperature || 0.7,
       top_p: parameters.topP || 0.9
+    }, {
+      timeout: 120000  // 2 minutes timeout for inference requests
     })
   },
   unloadModel: (jobId) => api.post(`/api/training/jobs/${jobId}/unload`),
-  unloadAllModels: () => api.post('/api/training/inference/unload-all')
+  unloadAllModels: () => api.post('/api/training/inference/unload-all'),
+  
+  // Inference-specific endpoints
+  getInferenceModels: () => api.get('/api/training/inference/models'),
+  getModelStatus: (jobId) => api.get(`/api/training/jobs/${jobId}/model-status`),
+  
+  // Debug endpoints
+  testConnection: () => api.get('/api/training/test')
 }
 
 // Monitoring API (updated)
@@ -102,7 +111,8 @@ export const monitoringAPI = {
 
 // WebSocket connections
 export const createWebSocket = (endpoint, onMessage, onError = null) => {
-  const wsUrl = API_BASE_URL.replace('http://', 'ws://').replace('https://', 'wss://')
+  // For WebSocket, we need to connect directly to the backend since Vite proxy doesn't handle WS well
+  const wsUrl = 'ws://localhost:8001'
   const ws = new WebSocket(`${wsUrl}${endpoint}`)
   
   ws.onmessage = (event) => {

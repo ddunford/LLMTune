@@ -4,7 +4,7 @@ import os
 import json
 import pandas as pd
 import uuid
-from typing import List
+from typing import List, Dict
 import aiofiles
 import logging
 import glob
@@ -19,8 +19,66 @@ from services.file_handler import FileHandler
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# In-memory storage for demo (in production, use a database)
-datasets_db = {}
+# In-memory storage for uploaded datasets
+datasets_db: Dict[str, DatasetMetadata] = {}
+
+async def process_dataset_metadata(dataset: DatasetMetadata, file_path: str) -> DatasetMetadata:
+    """Process dataset to extract metadata and sample data"""
+    try:
+        if dataset.format == DatasetFormat.JSONL:
+            # Process JSONL file
+            rows = []
+            with open(file_path, 'r', encoding='utf-8') as f:
+                for i, line in enumerate(f):
+                    if i >= 5:  # Only read first 5 rows for sample
+                        break
+                    try:
+                        row = json.loads(line.strip())
+                        rows.append(row)
+                    except json.JSONDecodeError:
+                        continue
+            
+            dataset.sample_data = rows
+            dataset.num_rows = sum(1 for _ in open(file_path, 'r', encoding='utf-8'))
+            
+        elif dataset.format == DatasetFormat.CSV:
+            # Process CSV file
+            df = pd.read_csv(file_path)
+            dataset.sample_data = df.head(5).to_dict('records')
+            dataset.num_rows = len(df)
+            dataset.columns = df.columns.tolist()
+            
+        elif dataset.format == DatasetFormat.TXT:
+            # Process text file
+            with open(file_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+            
+            # Sample first 5 lines
+            sample_lines = [{"text": line.strip()} for line in lines[:5]]
+            dataset.sample_data = sample_lines
+            dataset.num_rows = len(lines)
+        
+        # Estimate token count (rough approximation)
+        if dataset.sample_data:
+            avg_text_length = sum(len(str(row)) for row in dataset.sample_data) / len(dataset.sample_data)
+            estimated_tokens = int((avg_text_length * dataset.num_rows) / 4)  # Rough token estimation
+            dataset.num_tokens = estimated_tokens
+        
+        return dataset
+        
+    except Exception as e:
+        logger.error(f"Error processing dataset metadata: {e}")
+        raise
+
+async def process_dataset_with_options(
+    dataset: DatasetMetadata, 
+    file_path: str, 
+    options: DatasetProcessingRequest
+) -> DatasetMetadata:
+    """Process dataset with custom formatting options"""
+    # This would implement custom dataset processing logic
+    # For now, just return the original dataset
+    return dataset
 
 def reload_datasets_from_disk():
     """Reload datasets from uploads directory on startup"""
@@ -229,62 +287,4 @@ async def process_dataset(dataset_id: str, request: DatasetProcessingRequest):
         
     except Exception as e:
         logger.error(f"Error processing dataset {dataset_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-async def process_dataset_metadata(dataset: DatasetMetadata, file_path: str) -> DatasetMetadata:
-    """Process dataset to extract metadata and sample data"""
-    try:
-        if dataset.format == DatasetFormat.JSONL:
-            # Process JSONL file
-            rows = []
-            with open(file_path, 'r', encoding='utf-8') as f:
-                for i, line in enumerate(f):
-                    if i >= 5:  # Only read first 5 rows for sample
-                        break
-                    try:
-                        row = json.loads(line.strip())
-                        rows.append(row)
-                    except json.JSONDecodeError:
-                        continue
-            
-            dataset.sample_data = rows
-            dataset.num_rows = sum(1 for _ in open(file_path, 'r', encoding='utf-8'))
-            
-        elif dataset.format == DatasetFormat.CSV:
-            # Process CSV file
-            df = pd.read_csv(file_path)
-            dataset.sample_data = df.head(5).to_dict('records')
-            dataset.num_rows = len(df)
-            dataset.columns = df.columns.tolist()
-            
-        elif dataset.format == DatasetFormat.TXT:
-            # Process text file
-            with open(file_path, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-            
-            # Sample first 5 lines
-            sample_lines = [{"text": line.strip()} for line in lines[:5]]
-            dataset.sample_data = sample_lines
-            dataset.num_rows = len(lines)
-        
-        # Estimate token count (rough approximation)
-        if dataset.sample_data:
-            avg_text_length = sum(len(str(row)) for row in dataset.sample_data) / len(dataset.sample_data)
-            estimated_tokens = int((avg_text_length * dataset.num_rows) / 4)  # Rough token estimation
-            dataset.num_tokens = estimated_tokens
-        
-        return dataset
-        
-    except Exception as e:
-        logger.error(f"Error processing dataset metadata: {e}")
-        raise
-
-async def process_dataset_with_options(
-    dataset: DatasetMetadata, 
-    file_path: str, 
-    options: DatasetProcessingRequest
-) -> DatasetMetadata:
-    """Process dataset with custom formatting options"""
-    # This would implement custom dataset processing logic
-    # For now, just return the original dataset
-    return dataset 
+        raise HTTPException(status_code=500, detail=str(e)) 

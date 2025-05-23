@@ -2,6 +2,8 @@ from fastapi import APIRouter, HTTPException
 from typing import List
 import os
 import logging
+import torch
+from datetime import datetime
 
 from models.training import (
     TrainingConfig, TrainingJob, TrainingJobResponse, 
@@ -29,7 +31,38 @@ async def create_training_job(config: TrainingConfig):
 async def list_training_jobs():
     """List all training jobs"""
     jobs = training_runner.list_jobs()
-    return {"jobs": jobs}
+    
+    # Also include inference models for backward compatibility
+    completed_jobs = [job for job in jobs if job.status == TrainingStatus.COMPLETED]
+    inference_models = []
+    for job in completed_jobs:
+        checkpoint_exists = os.path.exists(f"checkpoints/{job.id}")
+        if checkpoint_exists:
+            inference_models.append({
+                "id": job.id,
+                "name": f"{job.config.base_model.split('/')[-1]} ({job.id})",
+                "base_model": job.config.base_model,
+                "method": job.config.method.value,
+                "status": job.status.value,
+                "created_at": job.created_at,
+                "completed_at": job.completed_at,
+                "checkpoint_dir": job.checkpoint_dir,
+                "config": {
+                    "base_model": job.config.base_model,
+                    "method": job.config.method.value,
+                    "lora_config": {
+                        "rank": job.config.lora_config.rank if job.config.lora_config else None,
+                        "alpha": job.config.lora_config.alpha if job.config.lora_config else None,
+                        "dropout": job.config.lora_config.dropout if job.config.lora_config else None
+                    }
+                }
+            })
+    
+    return {
+        "jobs": jobs,
+        "inference_models": inference_models,
+        "inference_count": len(inference_models)
+    }
 
 @router.get("/jobs/{job_id}", response_model=TrainingJob)
 async def get_training_job(job_id: str):
@@ -453,21 +486,21 @@ async def cleanup_orphaned_files():
     return {"message": message, "files_removed": files_removed, "count": len(files_removed)}
 
 @router.post("/restore")
-async def restore_jobs_from_configs():
-    """Restore jobs from existing config files"""
+async def restore_jobs_from_checkpoints():
+    """Restore jobs from existing checkpoint directories"""
     try:
         # Call the restore method
-        await training_runner.restore_jobs_from_configs()
+        restored_count = await training_runner.restore_jobs_from_checkpoints()
         
         # Get the current job count
         jobs = training_runner.list_jobs()
         restored_jobs = [job for job in jobs if job.status in [TrainingStatus.FAILED, TrainingStatus.COMPLETED]]
         
-        message = f"Job restoration completed. Found {len(restored_jobs)} jobs from config files."
+        message = f"Job restoration completed. Found {restored_count} completed training jobs."
         return {
             "message": message, 
-            "restored_count": len(restored_jobs),
-            "jobs": [{"id": job.id, "status": job.status, "base_model": job.config.base_model} for job in restored_jobs]
+            "restored_count": restored_count,
+            "jobs": [{"id": job.id, "status": job.status.value, "base_model": job.config.base_model} for job in restored_jobs]
         }
         
     except Exception as e:
@@ -551,7 +584,7 @@ async def download_model_files(job_id: str, file_type: str = "adapter"):
 
 @router.post("/jobs/{job_id}/inference")
 async def test_model_inference(job_id: str, request: dict):
-    """Test inference with a completed model"""
+    """Test inference with a completed model (with extended timeout for model loading)"""
     job = training_runner.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Training job not found")
@@ -568,20 +601,39 @@ async def test_model_inference(job_id: str, request: dict):
         if not prompt:
             raise HTTPException(status_code=400, detail="Prompt is required")
         
-        # Load model if not already loaded
+        import asyncio
+        
+        # Load model with extended timeout (5 minutes for large models)
         try:
-            model_info = inference_service.load_model(job_id, job.config)
+            model_info = await asyncio.wait_for(
+                asyncio.to_thread(inference_service.load_model, job_id, job.config),
+                timeout=300  # 5 minutes timeout for model loading
+            )
+        except asyncio.TimeoutError:
+            raise HTTPException(
+                status_code=504, 
+                detail="Model loading timeout (5 minutes). The model may be too large or GPU memory insufficient. Try clearing GPU memory first."
+            )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to load model: {str(e)}")
         
-        # Generate response
+        # Generate response with shorter timeout (2 minutes for generation)
         try:
-            response_text = inference_service.generate_response(
-                job_id=job_id,
-                prompt=prompt,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                top_p=top_p
+            response_text = await asyncio.wait_for(
+                asyncio.to_thread(
+                    inference_service.generate_response,
+                    job_id=job_id,
+                    prompt=prompt,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    top_p=top_p
+                ),
+                timeout=120  # 2 minutes timeout for generation
+            )
+        except asyncio.TimeoutError:
+            raise HTTPException(
+                status_code=504, 
+                detail="Text generation timeout (2 minutes). Try reducing max_tokens or simplifying the prompt."
             )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error during generation: {str(e)}")
@@ -597,8 +649,9 @@ async def test_model_inference(job_id: str, request: dict):
                 "temperature": temperature,
                 "top_p": top_p
             },
-            "device": inference_service.device,
-            "torch_dtype": str(model_info["torch_dtype"])
+            "device": str(inference_service.device),
+            "torch_dtype": str(model_info["torch_dtype"]),
+            "loading_time": "Model loaded successfully"
         }
         
     except HTTPException:
@@ -622,4 +675,175 @@ async def unload_all_models():
         inference_service.unload_all_models()
         return {"message": "All models unloaded successfully"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error unloading models: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"Error unloading models: {str(e)}")
+
+@router.post("/gpu/clear-memory")
+async def clear_gpu_memory():
+    """Clear GPU memory cache to resolve CUDA OOM issues"""
+    try:
+        import torch
+        import gc
+        
+        # Force garbage collection
+        gc.collect()
+        
+        # Clear GPU memory cache
+        if torch.cuda.is_available():
+            for i in range(torch.cuda.device_count()):
+                with torch.cuda.device(i):
+                    torch.cuda.empty_cache()
+                    torch.cuda.synchronize()
+        
+        # Get current memory usage
+        memory_info = {}
+        if torch.cuda.is_available():
+            for i in range(torch.cuda.device_count()):
+                allocated = torch.cuda.memory_allocated(i) / 1024**3
+                cached = torch.cuda.memory_reserved(i) / 1024**3
+                total = torch.cuda.get_device_properties(i).total_memory / 1024**3
+                memory_info[f"gpu_{i}"] = {
+                    "allocated": f"{allocated:.2f}GB",
+                    "cached": f"{cached:.2f}GB", 
+                    "total": f"{total:.2f}GB",
+                    "free": f"{total - allocated:.2f}GB"
+                }
+        
+        return {
+            "message": "GPU memory cleared successfully",
+            "memory_info": memory_info
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error clearing GPU memory: {str(e)}")
+
+@router.get("/jobs/{job_id}/model-status")
+async def get_model_status(job_id: str):
+    """Check if a model is loaded in memory and get loading info"""
+    try:
+        job = training_runner.get_job(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Training job not found")
+        
+        is_loaded = job_id in inference_service.loaded_models
+        
+        # Get GPU memory info
+        memory_info = {}
+        if torch.cuda.is_available():
+            for i in range(torch.cuda.device_count()):
+                allocated = torch.cuda.memory_allocated(i) / 1024**3
+                cached = torch.cuda.memory_reserved(i) / 1024**3
+                total = torch.cuda.get_device_properties(i).total_memory / 1024**3
+                memory_info[f"gpu_{i}"] = {
+                    "allocated": f"{allocated:.2f}GB",
+                    "cached": f"{cached:.2f}GB", 
+                    "total": f"{total:.2f}GB",
+                    "free": f"{total - allocated:.2f}GB"
+                }
+        
+        return {
+            "job_id": job_id,
+            "model_loaded": is_loaded,
+            "job_status": job.status.value,
+            "base_model": job.config.base_model,
+            "method": job.config.method.value,
+            "checkpoint_exists": os.path.exists(f"checkpoints/{job_id}"),
+            "memory_info": memory_info,
+            "inference_device": str(inference_service.device),
+            "total_loaded_models": len(inference_service.loaded_models),
+            "message": "Model loaded and ready" if is_loaded else "Model not loaded - will load on first inference request"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error checking model status: {str(e)}")
+
+@router.get("/inference/models")
+async def get_inference_models():
+    """Get all completed training models available for inference"""
+    try:
+        jobs = training_runner.list_jobs()
+        completed_jobs = [job for job in jobs if job.status == TrainingStatus.COMPLETED]
+        
+        inference_models = []
+        for job in completed_jobs:
+            # Check if checkpoint exists
+            checkpoint_exists = os.path.exists(f"checkpoints/{job.id}")
+            if checkpoint_exists:
+                inference_models.append({
+                    "id": job.id,
+                    "name": f"{job.config.base_model.split('/')[-1]} ({job.id})",
+                    "base_model": job.config.base_model,
+                    "method": job.config.method.value,
+                    "status": job.status.value,
+                    "created_at": job.created_at,
+                    "completed_at": job.completed_at,
+                    "checkpoint_dir": job.checkpoint_dir,
+                    "config": {
+                        "base_model": job.config.base_model,
+                        "method": job.config.method.value,
+                        "lora_config": {
+                            "rank": job.config.lora_config.rank if job.config.lora_config else None,
+                            "alpha": job.config.lora_config.alpha if job.config.lora_config else None,
+                            "dropout": job.config.lora_config.dropout if job.config.lora_config else None
+                        }
+                    }
+                })
+        
+        return {
+            "models": inference_models,
+            "count": len(inference_models),
+            "message": f"Found {len(inference_models)} models available for inference"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting inference models: {str(e)}")
+
+@router.get("/debug/frontend-check")
+async def debug_frontend_check():
+    """Debug endpoint to check what data is available for frontend"""
+    try:
+        # Get all jobs
+        all_jobs = training_runner.list_jobs()
+        
+        # Get completed jobs
+        completed_jobs = [job for job in all_jobs if job.status == TrainingStatus.COMPLETED]
+        
+        # Get inference models
+        inference_response = await get_inference_models()
+        
+        return {
+            "total_jobs": len(all_jobs),
+            "completed_jobs": len(completed_jobs),
+            "inference_models_count": inference_response.get("count", 0),
+            "backend_status": "healthy",
+            "endpoints": {
+                "jobs": "/api/training/jobs",
+                "inference_models": "/api/training/inference/models",
+                "model_status": "/api/training/jobs/{job_id}/model-status",
+                "inference": "/api/training/jobs/{job_id}/inference"
+            },
+            "sample_completed_job": completed_jobs[0].__dict__ if completed_jobs else None,
+            "gpu_info": {
+                "available": torch.cuda.is_available(),
+                "device_count": torch.cuda.device_count() if torch.cuda.is_available() else 0
+            }
+        }
+        
+    except Exception as e:
+        return {
+            "error": str(e),
+            "backend_status": "error"
+        }
+
+@router.get("/test")
+async def test_endpoint():
+    """Simple test endpoint to verify frontend can reach backend"""
+    return {
+        "status": "success",
+        "message": "Backend is reachable!",
+        "timestamp": datetime.now().isoformat(),
+        "available_endpoints": [
+            "/api/training/jobs",
+            "/api/training/inference/models", 
+            "/api/training/test"
+        ]
+    } 

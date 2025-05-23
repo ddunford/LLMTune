@@ -42,17 +42,49 @@ function Inference() {
   }
 
   const loadCompletedModels = async () => {
+    console.log('🔄 Loading inference models...')
     try {
+      // Try the jobs endpoint first (most reliable)
       const response = await api.trainingAPI.getJobs()
-      const completedJobs = (response.jobs || response.data?.jobs || [])
-        .filter(job => job.status === 'completed')
-      setModels(completedJobs)
+      console.log('✅ Got jobs response:', response)
       
-      if (completedJobs.length > 0 && !selectedModel) {
-        setSelectedModel(completedJobs[0])
+      // Check if we have inference_models in the response
+      let inferenceModels = response.data?.inference_models || response.inference_models || []
+      
+      // If no inference_models, fallback to filtering completed jobs
+      if (inferenceModels.length === 0) {
+        const completedJobs = (response.jobs || response.data?.jobs || [])
+          .filter(job => job.status === 'completed')
+        inferenceModels = completedJobs
+        console.log('📊 Using completed jobs as inference models:', completedJobs.length)
+      } else {
+        console.log('📊 Using dedicated inference models:', inferenceModels.length)
+      }
+      
+      console.log('📊 Final models found:', inferenceModels.length, inferenceModels)
+      setModels(inferenceModels)
+      
+      if (inferenceModels.length > 0 && !selectedModel) {
+        setSelectedModel(inferenceModels[0])
+        console.log('🎯 Auto-selected first model:', inferenceModels[0].id)
       }
     } catch (error) {
-      console.error('Failed to load models:', error)
+      console.error('❌ Failed to load models:', error)
+      // Final fallback - try the dedicated endpoint
+      try {
+        console.log('🔄 Trying dedicated inference endpoint as last resort...')
+        const response = await api.trainingAPI.getInferenceModels()
+        const inferenceModels = response.data?.models || response.models || []
+        console.log('📊 Dedicated endpoint models found:', inferenceModels.length, inferenceModels)
+        setModels(inferenceModels)
+        
+        if (inferenceModels.length > 0 && !selectedModel) {
+          setSelectedModel(inferenceModels[0])
+          console.log('🎯 Auto-selected first dedicated model:', inferenceModels[0].id)
+        }
+      } catch (fallbackError) {
+        console.error('❌ All methods failed:', fallbackError)
+      }
     }
   }
 
@@ -78,7 +110,7 @@ function Inference() {
         type: 'bot',
         content: response.response || response.data?.response,
         timestamp: new Date(),
-        model: selectedModel.config.base_model,
+        model: selectedModel.config?.base_model || selectedModel.base_model,
         parameters: response.parameters
       }
 
@@ -181,7 +213,7 @@ function Inference() {
               <option value="">Select a model...</option>
               {models.map(model => (
                 <option key={model.id} value={model.id}>
-                  {model.config.base_model?.split('/').pop() || 'Unknown'} ({model.id})
+                  {model.name || (model.config?.base_model?.split('/').pop() || 'Unknown')} ({model.id})
                 </option>
               ))}
             </select>
@@ -229,6 +261,24 @@ function Inference() {
             >
               Free GPU
             </button>
+            
+            {/* Debug Connection */}
+            <button
+              onClick={async () => {
+                try {
+                  const response = await api.trainingAPI.testConnection()
+                  console.log('🔍 Connection test:', response)
+                  alert('✅ Backend connection successful!')
+                } catch (error) {
+                  console.error('🔍 Connection test failed:', error)
+                  alert('❌ Backend connection failed: ' + error.message)
+                }
+              }}
+              className="px-3 py-2 text-xs text-blue-700 bg-blue-100 rounded-lg hover:bg-blue-200"
+              title="Test backend connection"
+            >
+              Test API
+            </button>
           </div>
         </div>
         
@@ -237,10 +287,10 @@ function Inference() {
           <div className="mt-3 p-3 bg-blue-50 rounded-lg">
             <div className="flex items-center justify-between text-sm">
               <div>
-                <span className="font-medium text-blue-900">Model:</span> {selectedModel.config.base_model}
+                <span className="font-medium text-blue-900">Model:</span> {selectedModel.config?.base_model || selectedModel.base_model}
               </div>
               <div>
-                <span className="font-medium text-blue-900">Method:</span> {selectedModel.config.method?.toUpperCase()}
+                <span className="font-medium text-blue-900">Method:</span> {(selectedModel.config?.method || selectedModel.method)?.toUpperCase()}
               </div>
               <div>
                 <span className="font-medium text-blue-900">Job ID:</span> {selectedModel.id}

@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
 import logging
+from contextlib import asynccontextmanager
 
 from routes import training, datasets, monitoring, settings
 from services.database import db_service
@@ -11,16 +12,15 @@ from services.database import db_service
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(
-    title="LLM Fine-Tuning UI Backend",
-    description="Backend API for fine-tuning LLMs with LoRA, QLoRA, and full fine-tuning",
-    version="1.0.0"
-)
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize services on startup"""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan handler"""
+    # Startup
     print("🚀 Starting LLM Fine-Tuning UI...")
+    print("📋 Configuration:")
+    print("   - Extended timeouts: Model loading (5min), Generation (2min)")
+    print("   - Multi-GPU inference support enabled")
+    print("   - Keep-alive timeout: 10 minutes")
     
     # Database initialization
     try:
@@ -29,7 +29,28 @@ async def startup_event():
     except Exception as e:
         logger.error(f"Database connection failed: {e}")
     
+    # Restore completed training jobs from checkpoints
+    try:
+        from routes.training import training_runner
+        restored_count = await training_runner.restore_jobs_from_checkpoints()
+        if restored_count > 0:
+            logger.info(f"Restored {restored_count} completed training jobs")
+    except Exception as e:
+        logger.error(f"Failed to restore training jobs: {e}")
+    
     logger.info("Application started successfully")
+    
+    yield
+    
+    # Shutdown
+    logger.info("Application shutting down")
+
+app = FastAPI(
+    title="LLM Fine-Tuning UI Backend",
+    description="Backend API for fine-tuning LLMs with LoRA, QLoRA, and full fine-tuning",
+    version="1.0.0",
+    lifespan=lifespan
+)
 
 # CORS middleware for frontend communication
 app.add_middleware(
@@ -38,9 +59,11 @@ app.add_middleware(
         "http://localhost:3000", 
         "http://localhost:5173", 
         "http://localhost:55155",
+        "http://localhost:55156",  # New port for frontend
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173", 
-        "http://127.0.0.1:55155"
+        "http://127.0.0.1:55155",
+        "http://127.0.0.1:55156"   # New port for frontend
     ],  # React dev servers
     allow_credentials=True,
     allow_methods=["*"],
@@ -77,5 +100,8 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8001,
         reload=True,
-        log_level="info"
+        log_level="info",
+        timeout_keep_alive=600,  # 10 minutes keep alive timeout
+        limit_concurrency=10,    # Limit concurrent connections
+        limit_max_requests=1000  # Max requests per worker
     ) 

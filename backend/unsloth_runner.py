@@ -302,10 +302,11 @@ def main():
     print("🎯 Creating trainer...")
     trainer = CustomTrainer(
         model=model,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         train_dataset=tokenized_dataset,
         data_collator=data_collator,
         args=training_args,
+        label_names=["labels"],
     )
     
     print("🎯 Starting training...")
@@ -506,6 +507,98 @@ if __name__ == "__main__":
         """Async wrapper for process.wait()"""
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, process.wait)
+    
+    async def restore_jobs_from_checkpoints(self):
+        """Restore completed training jobs from checkpoint directories"""
+        import os
+        import json
+        from datetime import datetime
+        
+        checkpoints_dir = "checkpoints"
+        if not os.path.exists(checkpoints_dir):
+            return 0
+        
+        logger.info("Restoring completed training jobs from checkpoints...")
+        restored_count = 0
+        
+        for item in os.listdir(checkpoints_dir):
+            if item == ".gitkeep":
+                continue
+                
+            checkpoint_path = os.path.join(checkpoints_dir, item)
+            if not os.path.isdir(checkpoint_path):
+                continue
+                
+            job_id = item
+            
+            # Skip if job already exists in memory
+            if job_id in self.jobs:
+                continue
+                
+            try:
+                # Check if this is a valid checkpoint directory
+                adapter_config_path = os.path.join(checkpoint_path, "adapter_config.json")
+                if not os.path.exists(adapter_config_path):
+                    logger.warning(f"Skipping {job_id}: no adapter_config.json found")
+                    continue
+                
+                # Try to reconstruct job config from adapter config and checkpoint files
+                with open(adapter_config_path, 'r') as f:
+                    adapter_config = json.load(f)
+                
+                # Get base model from adapter config
+                base_model = adapter_config.get("base_model_name_or_path", "unknown")
+                
+                # Determine training method
+                training_method = TrainingMethod.LORA  # Default to LoRA
+                if "qlora" in checkpoint_path.lower() or adapter_config.get("use_dora", False):
+                    training_method = TrainingMethod.QLORA
+                
+                # Create a basic training config (we don't have the original config)
+                from models.training import TrainingConfig, LoRAConfig, Precision
+                
+                lora_config = LoRAConfig(
+                    rank=adapter_config.get("r", 16),
+                    alpha=adapter_config.get("lora_alpha", 32),
+                    dropout=adapter_config.get("lora_dropout", 0.1)
+                )
+                
+                training_config = TrainingConfig(
+                    base_model=base_model,
+                    dataset_path="unknown",  # We don't have this info
+                    method=training_method,
+                    epochs=3,  # Default value
+                    learning_rate=0.0002,  # Default value
+                    batch_size=4,  # Default value
+                    max_sequence_length=2048,  # Default value
+                    lora_config=lora_config,
+                    precision=Precision.FP16,  # Default value
+                    use_dual_gpu=True
+                )
+                
+                # Create training job with completed status
+                job = TrainingJob(
+                    id=job_id,
+                    config=training_config,
+                    status=TrainingStatus.COMPLETED,
+                    total_epochs=3,
+                    current_epoch=3,
+                    checkpoint_dir=checkpoint_path,
+                    completed_at=datetime.now(),  # We don't have the actual completion time
+                    log_file=f"logs/{job_id}.log"
+                )
+                
+                # Add to jobs dict
+                self.jobs[job_id] = job
+                restored_count += 1
+                logger.info(f"Restored completed job {job_id} (base_model: {base_model})")
+                
+            except Exception as e:
+                logger.error(f"Failed to restore job {job_id}: {e}")
+                continue
+        
+        logger.info(f"Restored {restored_count} completed training jobs")
+        return restored_count
 
 # Global dual GPU training runner instance
 dual_gpu_runner = DualGPUTrainingRunner() 

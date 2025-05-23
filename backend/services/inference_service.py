@@ -8,8 +8,22 @@ import warnings
 
 class InferenceService:
     def __init__(self):
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.loaded_models = {}
+        self.loaded_models: Dict[str, Any] = {}
+        # Use GPU 1 for inference to avoid conflicts with training on GPU 0
+        if torch.cuda.is_available() and torch.cuda.device_count() >= 2:
+            self.device = "cuda:1"  # Use second GPU for inference
+            torch.cuda.set_device(1)
+        elif torch.cuda.is_available():
+            self.device = "cuda:0"
+            torch.cuda.set_device(0)
+        else:
+            self.device = "cpu"
+        
+        # Clear any existing GPU memory
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            
+        print(f"InferenceService initialized with device: {self.device}")
         
     def load_model(self, job_id: str, job_config: Any) -> Dict[str, Any]:
         """Load a trained model for inference"""
@@ -119,12 +133,22 @@ class InferenceService:
         
         # Load base model with error handling
         try:
+            # Create device map for multi-GPU inference if available
+            device_map = None
+            if torch.cuda.device_count() >= 2:
+                print(f"Setting up multi-GPU inference with {torch.cuda.device_count()} GPUs")
+                device_map = "auto"  # Let transformers handle device placement
+            else:
+                device_map = {"": self.device}
+            
             base_model = AutoModelForCausalLM.from_pretrained(
                 base_model_name,
                 torch_dtype=torch_dtype,
-                device_map=None,  # Don't use automatic device mapping to avoid multi-GPU issues
+                device_map=device_map,
                 trust_remote_code=True,
-                low_cpu_mem_usage=True
+                low_cpu_mem_usage=True,
+                # Use 8-bit loading if memory is tight
+                load_in_8bit=torch.cuda.device_count() == 1 and "7B" in base_model_name
             )
             
         except Exception as e:
@@ -134,8 +158,8 @@ class InferenceService:
         tokenizer_vocab_size = len(tokenizer)
         resize_model_embeddings_if_needed(base_model, tokenizer_vocab_size, "base_model")
         
-        # Move base model to device early
-        base_model = base_model.to(self.device)
+        # Note: Don't manually move to device when using device_map="auto"
+        # The model is already placed across GPUs by transformers
         
         # Load adapter or full model
         if job_config.method.value in ["lora", "qlora"]:
@@ -157,16 +181,14 @@ class InferenceService:
                         merged_model = AutoModelForCausalLM.from_pretrained(
                             checkpoint_dir,
                             torch_dtype=torch_dtype,
-                            device_map=None,  # Don't use automatic device mapping
+                            device_map=device_map,
                             trust_remote_code=True,
-                            low_cpu_mem_usage=True
+                            low_cpu_mem_usage=True,
+                            load_in_8bit=torch.cuda.device_count() == 1 and "7B" in base_model_name
                         )
                         
                         # Resize this model too if needed
                         resize_model_embeddings_if_needed(merged_model, tokenizer_vocab_size, "merged_model")
-                        
-                        # Move to device
-                        merged_model = merged_model.to(self.device)
                         
                         model = merged_model
                         base_model = None  # Don't need base model in this case
@@ -179,28 +201,27 @@ class InferenceService:
             model = AutoModelForCausalLM.from_pretrained(
                 checkpoint_dir,
                 torch_dtype=torch_dtype,
-                device_map=None,  # Don't use automatic device mapping
+                device_map=device_map,
                 trust_remote_code=True,
-                low_cpu_mem_usage=True
+                low_cpu_mem_usage=True,
+                load_in_8bit=torch.cuda.device_count() == 1 and "7B" in base_model_name
             )
             
             # Resize if needed
             resize_model_embeddings_if_needed(model, tokenizer_vocab_size, "fine_tuned_model")
-            
-            # Move to device
-            model = model.to(self.device)
         
         model.eval()
         
-        # Ensure all model components are on the same device
-        if hasattr(model, 'base_model') and hasattr(model.base_model, 'to'):
-            model.base_model = model.base_model.to(self.device)
+        # Check device placement and memory usage
+        print(f"Model successfully loaded and ready for inference")
+        if hasattr(model, 'hf_device_map'):
+            print(f"Model device map: {model.hf_device_map}")
         
-        # Move the entire model to device one more time to be sure
-        model = model.to(self.device)
-        
-        print(f"Model successfully loaded and ready for inference on device: {self.device}")
-        print(f"Model device: {next(model.parameters()).device if hasattr(model, 'parameters') else 'unknown'}")
+        # Check GPU memory usage
+        if torch.cuda.is_available():
+            for i in range(torch.cuda.device_count()):
+                allocated = torch.cuda.memory_allocated(i) / 1024**3
+                print(f"GPU {i} allocated: {allocated:.2f}GB")
         
         model_info = {
             "model": model,
@@ -232,9 +253,27 @@ class InferenceService:
         model = model_info["model"]
         tokenizer = model_info["tokenizer"]
         
+        # Clear GPU cache before inference
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        
         # Prepare input
         inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512)
-        if torch.cuda.is_available():
+        
+        # For multi-GPU models, place inputs on the first device of the model
+        if hasattr(model, 'hf_device_map') and model.hf_device_map:
+            # Find the device of the first layer
+            first_device = None
+            for module_name, device in model.hf_device_map.items():
+                if 'embed' in module_name or 'layers.0' in module_name:
+                    first_device = device
+                    break
+            if first_device is None:
+                first_device = list(model.hf_device_map.values())[0]
+            
+            inputs = {k: v.to(first_device) for k, v in inputs.items()}
+        elif torch.cuda.is_available():
+            # Fallback to inference device
             inputs = {k: v.to(self.device) for k, v in inputs.items()}
         
         # Generate response
@@ -249,18 +288,25 @@ class InferenceService:
             use_cache=True
         )
         
-        with torch.no_grad():
-            outputs = model.generate(
-                **inputs,
-                generation_config=generation_config
-            )
-        
-        # Decode response
-        input_length = inputs["input_ids"].shape[1]
-        generated_tokens = outputs[0][input_length:]
-        response_text = tokenizer.decode(generated_tokens, skip_special_tokens=True)
-        
-        return response_text.strip()
+        try:
+            with torch.no_grad():
+                outputs = model.generate(
+                    **inputs,
+                    generation_config=generation_config
+                )
+            
+            # Decode response
+            input_length = inputs["input_ids"].shape[1]
+            generated_tokens = outputs[0][input_length:]
+            response_text = tokenizer.decode(generated_tokens, skip_special_tokens=True)
+            
+            return response_text.strip()
+            
+        except Exception as e:
+            # Clear cache on error
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            raise e
     
     def unload_model(self, job_id: str):
         """Unload a model to free memory"""

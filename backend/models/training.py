@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Literal
 from enum import Enum
 from datetime import datetime
@@ -28,6 +28,8 @@ class LoRAConfig(BaseModel):
     target_modules: List[str] = Field(default=["q_proj", "v_proj"], description="Target modules for LoRA")
 
 class TrainingConfig(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+    
     # Model configuration
     base_model: str = Field(..., description="Hugging Face model ID")
     model_type: Optional[str] = Field(None, description="Model type (auto-detected)")
