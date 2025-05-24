@@ -22,6 +22,25 @@ A user-friendly web-based interface for training and fine-tuning Large Language 
 - **📊 Resumable Training**: Automatic checkpoint saving every epoch
 - **🖥️ Background Processing**: Non-blocking UI during training operations
 - **🧩 Auto-Optimization**: Unsloth handles GPU placement and optimization automatically
+- **🐳 Docker Ready**: Complete containerization with CUDA support for easy deployment
+- **🌐 CORS Optimized**: Seamless frontend-backend communication via Vite proxy
+- **⏱️ Extended Inference**: 2-minute timeout support for large model loading and generation
+
+## 🆕 Recent Updates
+
+### Latest Improvements (January 2025)
+- **🔧 CORS Issues Resolved**: Fixed all frontend-backend connectivity problems using Vite proxy configuration
+- **⏱️ Extended Inference Timeout**: Increased from 30 seconds to 2 minutes for large model loading and generation
+- **📊 Optimized Monitoring**: Reduced polling interval from 2 seconds to 5 seconds for better performance
+- **🐳 Complete Docker Setup**: Added comprehensive containerization with CUDA support, multi-stage builds, and production deployment
+- **🔧 GPU Memory Management**: Improved model loading/unloading for better dual GPU utilization
+- **🌐 Enhanced API Communication**: Optimized WebSocket configuration and proxy settings
+
+### Performance Improvements
+- **Faster Startup**: Streamlined backend initialization and model loading
+- **Better Resource Usage**: Optimized GPU memory allocation and monitoring overhead
+- **Improved Stability**: Enhanced error handling and recovery mechanisms
+- **Seamless Development**: Hot reloading and auto-restart capabilities in Docker environment
 
 ## 📸 Screenshots
 
@@ -88,9 +107,9 @@ python -c "import torch; print(torch.cuda.is_available())"  # Should return True
 python -c "import torch; print(f'GPUs: {torch.cuda.device_count()}')"  # Should show 2 for dual GPU
 ```
 
-## 🐳 Docker Setup (Alternative)
+## 🐳 Docker Setup (Recommended)
 
-For easier deployment and environment management, you can use Docker:
+For easier deployment, environment management, and guaranteed compatibility, Docker is the recommended installation method:
 
 ### Prerequisites
 - Docker (v20.10+)
@@ -282,7 +301,9 @@ LLMTune/
 │   ├── uploads/            # User datasets
 │   ├── logs/              # Training logs
 │   ├── checkpoints/       # Model checkpoints
-│   └── scripts/           # Generated training scripts
+│   ├── scripts/           # Generated training scripts
+│   ├── Dockerfile          # Backend container definition
+│   └── .dockerignore      # Docker build optimization
 ├── frontend/               # React frontend
 │   ├── src/
 │   │   ├── components/    # UI components
@@ -290,7 +311,10 @@ LLMTune/
 │   │   ├── hooks/         # Custom React hooks
 │   │   ├── services/      # API services
 │   │   └── utils/         # Utility functions
-│   └── public/           # Static assets
+│   ├── public/           # Static assets
+│   ├── Dockerfile          # Frontend container definition
+│   ├── nginx.conf          # Production nginx configuration
+│   └── .dockerignore      # Docker build optimization
 ├── docs/                  # Documentation and screenshots
 │   ├── train_models.png   # Model selection interface
 │   ├── train_dataset.png  # Dataset upload interface
@@ -298,7 +322,12 @@ LLMTune/
 │   └── PRD.md            # Product Requirements Document
 ├── .cursor/              # Cursor IDE rules
 │   └── rules/           # Development guidelines
-└── README.md           # This file
+├── docker-compose.yml      # Main Docker orchestration
+├── docker-compose.dev.yml  # Development overrides
+├── docker-setup.sh        # Docker management script
+├── Docker-README.md       # Docker setup documentation
+├── .env.example           # Environment variables template
+└── README.md             # This file
 ```
 
 ## 🔧 Development
@@ -317,7 +346,18 @@ LLMTune/
 - [x] ~~Inference preview/sandbox~~
 - [x] ~~Unsloth migration for 2-5x faster training~~
 - [x] ~~Dual GPU optimization~~
+- [x] ~~Docker containerization with GPU support~~
+- [x] ~~CORS fixes and API optimization~~
+- [x] ~~Performance improvements and monitoring~~
 - [ ] Multi-user authentication
+
+### Recent Improvements (Latest Updates) ✅
+- [x] ~~**CORS Resolution**: Fixed frontend-backend connectivity issues~~
+- [x] ~~**Extended Timeouts**: Inference requests now support 2-minute timeout for model loading~~
+- [x] ~~**Optimized Polling**: Reduced monitoring refresh rate from 2s to 5s for better performance~~
+- [x] ~~**Docker Environment**: Complete containerization with CUDA support and production-ready setup~~
+- [x] ~~**GPU Memory Management**: Improved model loading and unloading for dual GPU setups~~
+- [x] ~~**WebSocket Configuration**: Enhanced real-time communication for monitoring~~
 
 ### Development Guidelines
 - **Backend**: FastAPI with **Unsloth** integration
@@ -362,10 +402,22 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🆘 Support
 
 ### Common Issues
+
+#### Installation & Setup
 - **CUDA not detected**: Ensure NVIDIA drivers and CUDA toolkit are properly installed
+- **Docker GPU support**: Install nvidia-docker2 for containerized GPU access
+- **Port conflicts**: Default ports are 8001 (backend) and 55155 (frontend dev)
+
+#### Training & Performance
 - **Out of memory**: Unsloth's optimizations should prevent this, but try reducing batch size if needed
 - **Training not using both GPUs**: Enable "Use Dual GPU" in training configuration
 - **Slow training**: Ensure Unsloth is properly installed and check logs for "2x faster" messages
+- **Inference timeouts**: Now supports 2-minute timeout for large model loading
+
+#### Connectivity & API
+- **CORS errors**: ✅ Fixed - Frontend now uses Vite proxy for seamless API communication
+- **API connection issues**: ✅ Resolved - Backend-frontend connectivity fully optimized
+- **Monitoring performance**: ✅ Improved - Polling reduced to 5-second intervals
 
 ### Getting Help
 - Check the [Issues](https://github.com/ddunford/LLMTune/issues) for common problems
