@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: llm-trainer-backend
+    ports:
+      - "8001:8001"
+    environment:
+      - CUDA_VISIBLE_DEVICES=0,1
+      - PYTHONPATH=/app
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - ./backend/logs:/app/logs
+      - ./backend/checkpoints:/app/checkpoints
+      - ./backend/configs:/app/configs
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - llm-trainer-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  frontend-dev:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    container_name: llm-trainer-frontend-dev
+    ports:
+      - "55155:55155"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:8001
+    networks:
+      - llm-trainer-network
+    depends_on:
+      - backend
+    restart: unless-stopped
+    profiles:
+      - development
+
+  frontend-prod:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: production
+    container_name: llm-trainer-frontend-prod
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - llm-trainer-network
+    restart: unless-stopped
+    profiles:
+      - production
+
+networks:
+  llm-trainer-network:
+    driver: bridge
+
+volumes:
+  backend_uploads:
+  backend_logs:
+  backend_checkpoints:
+  backend_configs: 

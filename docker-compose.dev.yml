@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  backend:
+    volumes:
+      - ./backend:/app
+    environment:
+      - DEBUG=true
+      - LOG_LEVEL=debug
+    command: ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001", "--reload", "--log-level", "debug"]
+
+  frontend-dev:
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=
+      - CHOKIDAR_USEPOLLING=true 

@@ -88,6 +88,49 @@ python -c "import torch; print(torch.cuda.is_available())"  # Should return True
 python -c "import torch; print(f'GPUs: {torch.cuda.device_count()}')"  # Should show 2 for dual GPU
 ```
 
+## 🐳 Docker Setup (Alternative)
+
+For easier deployment and environment management, you can use Docker:
+
+### Prerequisites
+- Docker (v20.10+)
+- Docker Compose (v2.0+)
+- NVIDIA Docker Runtime
+
+### Quick Start with Docker
+```bash
+# Clone repository
+git clone git@github.com:ddunford/LLMTune.git
+cd LLMTune
+
+# Start development environment
+./docker-setup.sh dev
+
+# Access the application
+# Frontend: http://localhost:55155
+# Backend: http://localhost:8001
+```
+
+### Docker Commands
+```bash
+# Development environment
+./docker-setup.sh dev
+
+# Production environment  
+./docker-setup.sh prod
+
+# Stop services
+./docker-setup.sh stop
+
+# View logs
+./docker-setup.sh logs
+
+# Check status
+./docker-setup.sh status
+```
+
+For detailed Docker setup instructions, see [Docker-README.md](Docker-README.md).
+
 ## 🚀 Quick Start
 
 ### 1. Start the Backend
