@@ -24,7 +24,7 @@ function Monitoring() {
           loadJobLogs(selectedJob.id)
         }
       }
-    }, 2000) // Update every 2 seconds
+    }, 5000) // Update every 5 seconds
 
     return () => clearInterval(interval)
   }, [autoRefresh, selectedJob])
